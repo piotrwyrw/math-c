@@ -50,12 +50,10 @@ void add_variable(char *id, float val) {
     variables[++ variables_count] = create_variable(id, val); 
 }
 
-
 char *input;
 int pos = 0;
 
 char current();
-
 
 char last() {
 	if (pos > 0) {
