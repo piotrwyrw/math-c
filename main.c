@@ -1,9 +1,17 @@
+/**
+ * 26.12.2020 | Piotr Wyrwas
+**/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
-float last_result = 0.0f;
+float last_result = 0.0f;	// Holds the last result
+char *input;				// Input to parse
+int pos = 0;				// Position of the lexer
+int should_output = 1;		// 1 if the float output should be printed (0 for variable/function declarations)
+float fPass = 0.0f;			// This value gets passed to the functions
 
 typedef struct VARIABLE VARIABLE;
 
@@ -50,8 +58,86 @@ void add_variable(char *id, float val) {
     variables[++ variables_count] = create_variable(id, val); 
 }
 
-char *input;
-int pos = 0;
+void mod_variable(char *id, float nVal) {
+	if (variable_exists(id)) {
+		for (int i = 0; i < sizeof(variables) / sizeof(VARIABLE); i ++) {
+			if (variables[i] == NULL)
+				continue;
+			VARIABLE *var = variables[i];
+			if (!strcmp(var->identifier, id)) {
+				var->value = nVal;
+				break;
+			}
+		}
+	}
+}
+
+typedef struct FUNCTION FUNCTION;
+
+struct FUNCTION {
+	char *identifier;
+	char *snippet;
+};
+
+int functions_count = 0;
+FUNCTION *functions[300];
+
+
+FUNCTION *create_function(char *identifier, char *snippet) {
+	FUNCTION *fun = (FUNCTION*) malloc(sizeof(FUNCTION));
+	fun->snippet = (char*) calloc(100, sizeof(char));
+	fun->identifier = (char*) calloc(100, sizeof(char));
+	strcpy(fun->snippet, snippet);
+	strcpy(fun->identifier, identifier);
+	return fun;
+}
+
+int function_exists(char*);
+
+void add_function(char *identifier, char *snippet) {
+	if (!function_exists(identifier)) {
+		functions[++ functions_count] = create_function(identifier, snippet);
+		return;
+	}
+	printf("Function '%s' already exists. Modifying ..\n", identifier);
+	for (int i = 0; i < sizeof(functions) / sizeof(FUNCTION); i ++) {
+		if (functions[i] == NULL) {
+			continue;
+		}
+		FUNCTION *fun = functions[i];
+		if (!strcmp(fun->identifier, identifier)) {
+			fun->snippet = snippet;
+			return;
+		}
+	}
+	printf("Failed to modify function '%s'.\n", identifier);
+}
+
+int function_exists(char *identifier) {
+	for (int i = 0; i < sizeof(functions) / sizeof(FUNCTION); i ++) {
+		if (functions[i] == NULL) {
+			continue;
+		}
+		FUNCTION *fun = functions[i];
+		if (!strcmp(fun->identifier, identifier)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+FUNCTION *get_function(char *identifier) {
+	for (int i = 0; i < sizeof(functions) / sizeof(FUNCTION); i ++) {
+		if (functions[i] == NULL) {
+			continue;
+		}
+		FUNCTION *fun = functions[i];
+		if (!strcmp(fun->identifier, identifier)) {
+			return fun;
+		}
+	}
+	return NULL;
+}
 
 char current();
 
@@ -93,36 +179,6 @@ float expression() {
 	return t;
 }
 
-// float strtofloat(char *str) {
-// 	int ap = 0; // Digits after point
-// 	float rslt = 0.0f;
-// 	for (int i = 0; i < strlen(str); i ++) {
-// 		char c = str[i];
-// 		if (c == '-' && i == 0) {
-// 			rslt *= -1;
-// 			continue;
-// 		}
-// 		if (c >= '0' && c <= '9') {
-// 			if (ap == 0) {
-// 				rslt = rslt * 10.0 + (c + 0.0) - '0';
-// 			} else {
-// 				rslt = rslt * pow(10.0, ap);
-// 				rslt = rslt + c - '0';
-// 				rslt = rslt / pow(10.0, ap);
-// 				ap ++;
-// 			}
-// 			continue;
-// 		}
-// 		if (c == '.') {
-// 			if (i <= 0 && ap != 0)
-// 				return 0.0; // Error
-// 			ap ++;
-// 			continue;
-// 		}
-// 	}
-// 	return rslt;
-// }
-
 void strncatchar(char *str, char c) {
 	str[strlen(str)] = c;
 	str[strlen(str)] = '\0';
@@ -147,39 +203,60 @@ float number() {
 		next();
 		return last_result;
 	}
+	if (current() == '?') {
+		next();
+		return fPass;
+	}
     if (current() >= 'a' && current() <= 'z') {
 		char *iden = identifier();
 		next();
 		if (current() == '[') {
 			next();
 			float fexpr = expression();
+			fPass = fexpr;
 			if (current() != ']') {
 				printf("Expected ']' after expression of function '%s' but got '%c' on column %d\n", iden, current(), pos + 1);
 				return 0;
 			}
 			next();
 			if (!strcmp(iden, "sin")) {
-				return sinf(fexpr);
+				return sinf(fPass);
 			}
 			if (!strcmp(iden, "cos")) {
-				return cosf(fexpr);
+				return cosf(fPass);
 			}
 			if (!strcmp(iden, "inv")) {
-				return fexpr * (-1);
+				return fPass * (-1);
 			}
 			if (!strcmp(iden, "sq")) {
-				return fexpr * fexpr;
+				return fPass * fPass;
 			}
 			if (!strcmp(iden, "sqrt")) {
-				return sqrtf(fexpr);
+				return sqrtf(fPass);
 			}
-			printf("Unknown function '%s' on column %d.\n", iden, pos + 1);
-			return 0;
+			if (!strcmp(iden, "tan")) {
+				return tanf(fPass);
+			}
+			if (!function_exists(iden)) {
+				printf("Unknown function '%s' on column %d.\n", iden, pos);
+				return 0;
+			}
+			FUNCTION *fun = get_function(iden);
+			int oldPos = pos;
+			char *oldInput = input;
+			pos = 0;
+			input = fun->snippet;
+			float fExpr = expression();
+			pos = oldPos;
+			input = oldInput;
+			return fExpr;
 		}
         if (!variable_exists(iden)) {
+			last();
             printf("Unknown variable '%s' on column %d. Assuming 0.\n", iden, pos + 1);
             number = 0;
         } else {
+			last();
             number = get_variable(iden);
         }
         next();
@@ -223,7 +300,7 @@ float number() {
 }
 
 float factor() {
-	if ((current() >= 'a' && current() <= 'z') || (current() >= '0' && current() <= '9') || current() == '$') {
+	if ((current() >= 'a' && current() <= 'z') || (current() >= '0' && current() <= '9') || current() == '$' || current() == '?') {
 		return number();
 	}
 	if (current() == '-') {
@@ -253,6 +330,86 @@ float term() {
 	return fac;
 }
 
+// @ a = 1+5
+float variable() {
+	char *iden = (char*) calloc(100, sizeof(char));
+	float expr;
+	if (current() != '@') {
+		printf("Expected expression or '@' on column %d.\n", pos);
+		return 0;
+	}
+	next();
+	if (!(current() >= 'a' && current() <= 'z')) {
+		printf("Expected identifier after '@' on column %d.\n", pos);
+		return 0;
+	}
+	iden = identifier();
+	next();
+	if (current() != '=') {
+		printf("Expected '=' after identifier on column %d.\n", pos);
+		return 0;
+	}
+	next();
+	expr = expression();
+	
+	if (variable_exists(iden)) {
+		printf("Variable '%s' already exists. Modifying ...\n", iden);
+		mod_variable(iden, expr);
+		return 0;
+	}
+	add_variable(iden, expr);
+	return 0;
+}
+
+// #identifier {? - 1}
+float function() {
+	char *iden;
+	char *snippet = (char*) calloc(100, sizeof(char));
+	if (current() != '#') {
+		printf("Expected '#' on column %d.\n", pos);
+		return 0;
+	}
+	next();
+	if (!(current() >= 'a' && current() <= 'z')) {
+		printf("Expected identifier after '#' on column %d.\n", pos);
+		return 0;
+	}
+	iden = identifier();
+	next();
+	if (current() != '{') {
+		printf("Expected '{' after identifier on column %d.\n", pos);
+		return 0;
+	}
+	next();
+	while (current() != '}' && current() != '\0') {
+		strncatchar(snippet, current());
+		next();
+	}
+	if (current() == '\0') {
+		printf("Expected '}' after function body on column %d.\n", pos);
+		return 0;
+	}
+	add_function(iden, snippet);
+	next();
+}
+
+float parse() {
+	if (current() == '@') {
+		should_output = 0;
+		return variable();
+	}
+	if (current() == '#') {
+		should_output = 0;
+		return function();
+	}
+	if (current() >= '0' && current() <= '9' || current() == '-' || current() >= 'a' && current() <= 'z' || current() == '$' || current() == '?') {
+		return expression();
+	}
+	printf("Unknown expression starting with '%c'.\n", current());
+	should_output = 0;
+	return 0;
+}
+
 int countinstr(char *str, char c) {
 	int found = 0;
 	for (int i = 0; i < strlen(str); i ++) {
@@ -279,43 +436,68 @@ int main(void) {
 	input = (char*) calloc(100, sizeof(char));
     add_variable("x", 1.5f);
 
-	printf("Type math expressions here (ex. 1 + 2 * 2)\nUse .help for help, exit with .exit or .quit\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n");
+	printf("Type math expressions here (ex. 1 + 2 * 2)\nUse .help for a list of commands.\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n\n");
 
 	while (1) {
+		// fPass = 0.0f;
+		should_output = 1;
 		printf(">>> ");
 		fgets(input, 100, stdin);
 		input = clean(input);
 		pos = 0;
-		if (!strcmp(input, ".exit") || !strcmp(input, ".quit")) {
-			return 0;
-		}
 		if (!strcmp(input, ".help")) {
-			printf("_______________________________________________________________________________");
-			printf("\nType in a valid mathematical expression to evaluate it. Example:\n>>> 1 + 2 * (1 + 5)\n= 13.000000\n");
-			printf("\nYou can use functions in your calculations. The available functions are (inv, sin, cos, sq, sqrt). Examples:\n>>> inv[ sq[8] ]\n= -64.00000\n>>> inv[1 + 2]\n= -3.00000\n");
-			printf("\nThe environment commands are (.exit, .quit, .last, .help).\n.exit       - Exits the program\n.quit       - Exits the program\n.last       - Evaluates the last expression\n.help       - Shows this help page\n");
-			printf("\nVariables are still in developement at the moment. To insert the\nresult of the last calculation into your expression, use $. Example:\n>>> $+1\n= 1.00000\n>>> .last\n= 2.00000\n>>> .last\n= 3.00000\n...\n");
-			printf("_______________________________________________________________________________\n");
+			printf(".help		- Show this help page\n.last		- Repeat last input\n.exit		- Exit the program\n.quit		- Exit the program\n.lvar		- List variables\n.lfun		- List functions\n");
 			continue;
-		}
-		if (!strcmp(input, ".last")) {
+		} else if (!strcmp(input, ".exit") || !strcmp(input, ".quit")) {
+			return 0;
+		} else if (!strcmp(input, ".last")) {
 			if (!strcmp(last_input, "")) {
 				printf("There is no last expression.\n");
 				continue;
 			}
 			strcpy(input, last_input);
+		} else if (!strcmp(input, ".lvar")) {
+			printf("Listing variables ..\n");
+			for (int i = 0; i < sizeof(variables) / sizeof(VARIABLE); i ++) {
+				if (variables[i] == NULL) {
+					continue;
+				}
+				VARIABLE *var = variables[i];
+				printf("%s\n .. %f\n", var->identifier, var->value);
+			}
+			continue;
+		} else if (!strcmp(input, ".lfun")) {
+			printf("Listing functions ..\n");
+			printf("sin\n .. (built in)\ncos\n .. (built in)\ntan\n .. (built in)\ninv\n .. (built in)\nsq\n .. (built in)\nsqrt\n .. (built in)\n");
+			for (int i = 0; i < sizeof(functions) / sizeof(FUNCTION); i ++) {
+				if (functions[i] == NULL) {
+					continue;
+				}
+				FUNCTION *fun = functions[i];
+				printf("%s\n .. %s\n", fun->identifier, fun->snippet);
+			}
+			continue;
+		} else if (input[0] == '.') {
+			printf("Unknown command. Use .help for help.\n");
+			continue;
 		}
 		if (countinstr(input, '(') != countinstr(input, ')')) {
 			printf("Unbalanced open and closed parantheses.\n");
+			continue;	
+		}
+		if (countinstr(input, '{') != countinstr(input, '}')) {
+			printf("Unbalanced open and closed curly brackets.\n");
 			continue;	
 		}
 		if (countinstr(input, '[') != countinstr(input, ']')) {
 			printf("Unbalanced open and closed square brackets.\n");
 			continue;	
 		}
-		float expr = expression();
-		printf("= %f\n", expr); 
-		last_result = expr;
+		float expr = parse();
+		if (should_output) {
+			printf("= %f\n", expr); 
+			last_result = expr;
+		}
 		strcpy(last_input, input);
 	}
 	free(input);
