@@ -53,7 +53,14 @@ Constant variables can't be modified anymore after declaration.
 ```
 
 ## Compiling on Linux
-### Compiling on Linux with GCC
+### Compiling on Linux with make script
 To compile this program, download the main.c and make.sh file.
 Use `./make.sh` command to compile the program.
 In case that didn't work, use `chmod +x make.sh` and then `./make.sh`
+### Compiling on Linux with GCC
+To compile this program using GCC, downlaod the main.c file and use the following command
+```bash
+gcc -o main.o main.c -lm
+```
+### Running the program on Linux
+After compiling the program, use `./main.o` to run it.
