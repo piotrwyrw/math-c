@@ -54,7 +54,6 @@ Constant variables can't be modified anymore after declaration.
 
 ## Compiling on Linux
 ### Compiling on Linux with GCC
-To compile this program, download the main.c file and use the following command.
-```sh
-gcc -o main.o main.c -lm
-```
+To compile this program, download the main.c and make.sh file.
+Use `./make.sh` command to compile the program.
+In case that didn't work, use `chmod +x make.sh` and then `./make.sh`
