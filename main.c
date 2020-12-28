@@ -286,7 +286,7 @@ float number() {
 	while (1) {
 		i = ++i;
 		char c = current();
-		if (c == ' ' || c == '\n' || c == '\t' || c == '\0' || !(c >= '0' && c <= '9' || c == '.')) {
+		if (c == '\0' || !(IS_DIGIT(c) || c == '.')) {
 			break;
 		}
 		if (c == '-' && i == 0) {
